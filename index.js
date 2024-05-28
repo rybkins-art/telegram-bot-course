@@ -2,12 +2,14 @@ const https = require('https');
 const fs = require("fs");
 const TelegramApi = require('node-telegram-bot-api')
 const { gameOptions, againOptions, types } = require('./options');
+const { clearInterval } = require('timers');
 
 const token = '6946681054:AAEOvH7d7xwKsZcceD5i9pabun0RExgKtFw'
 
+
+
 const bot = new TelegramApi(token, { polling: true })
 
-const chats = {}
 let BTCWallet = '';
 let price = 0;
 let course = {};
@@ -15,6 +17,7 @@ const commission = 0.2;
 let isStelsNotes = false;
 let stelsNotes = [];
 let temporaryMsgIDs = [];
+let autoHideNotesID = 0;
 
 function between(min, max) {
     return Math.floor(
@@ -62,12 +65,29 @@ const start = async () => {
         const text = msg.text;
         const chatId = msg.chat.id;
         const message_id = msg.message_id;
-        let priceN = 0;
-        const isStart = text === '/start';
+        const isStart = text === '/start' || text === 'Отмена';
+        const autoHideNotes = 5 * 60 * 1000;
+
+        const mainMenu = {
+            reply_markup: {
+                keyboard: [
+                    ['✅ Пополнить', '🈺 Текущий курс'],
+                    ['🥷 Мои заявки', '❓ Помощь'],
+                    ['Мои заметки']
+                ],
+                resize_keyboard: true
+            }
+        }
 
         if (!msg.text) {
             return;
         }
+
+        if (isStelsNotes) {
+            clearTimeout(autoHideNotesID);
+            autoHideNotesID = setTimeout(hideNotes, autoHideNotes);
+        }
+        
 
         function clearStels() {
             stelsNotes.forEach(item => {
@@ -86,49 +106,68 @@ const start = async () => {
             });
         }
 
-        if (isStart) {
-            //const user = await UserModel.findOne({chatId})
-            //await UserModel.create({chatId})
-
-            // Приветствие
-            await bot.sendSticker(chatId, 'https://media.stickerswiki.app/moneybitcoin_byalexzhdanov/6412776.512.webp')
-            bot.sendMessage(chatId, `Привет!  ${msg.from.first_name} 🤝
-
-Самый Выгодный и Быстрый обмен в нашем сервисе!
-🤷 Возникла проблема с заказом или вопрос /help
-⚙️ Если завис бот, используй /start
-
-Уверен, Мы обязательно Подружимся!`);
-            
-            // Меню
-            await bot.sendMessage(chatId, `Меню бота`, {
-
-                reply_markup: {
-                    keyboard: [
-                        ['✅ Пополнить', '🈺 Текущий курс'],
-                        ['🥷 Мои заявки', '❓ Помощь'],
-                        ['/stels', '/getStels', '/clearStels']
-                    ],
-                    resize_keyboard: true
-                }
-
-            });
+        async function showNotes() {
+            try {
+                const res = await bot.sendMessage(chatId, `Режим заметок. Данный раздел позволяет оставлять скрытые заметки. \n\n Отправьте текст или фото, которые хотите сохранить. \n\n Автосохранение через 5 мин, при бездействии в чате`, {
+                    reply_markup: {
+                        keyboard: [
+                            ['Сохранить и скрыть'],
+                            ['Отмена'],
+                        ],
+                        resize_keyboard: true
+                    }
+                });
+                temporaryMsgIDs.push(res.message_id)
+            } catch (error) {
+                console.log(error);
+                return;
+            }
         }
 
-        if (text === '/clearStels') {
+        async function hideNotes() {
+            clearStels();
+            startMenu();
+
+            return;
+        }
+
+        async function startMenu() {
+            // Приветствие
+            await bot.sendSticker(chatId, 'https://media.stickerswiki.app/moneybitcoin_byalexzhdanov/6412776.512.webp')
+            bot.sendMessage(chatId, `Привет!  ${msg.from.first_name} 🤝 \n\n Самый Выгодный и Быстрый обмен в нашем сервисе! \n🤷 Возникла проблема с заказом или вопрос /help
+⚙️ Если завис бот, используй /start`);
+            
+            // Меню
+            await bot.sendMessage(chatId, 'Уверен, Мы обязательно Подружимся!', mainMenu);
+        }
+
+        if (isStart) {
+            bot.deleteMessage(chatId, message_id);
+            clearStels();
+            isStelsNotes = false;
+
+            startMenu();
+            return;
+        }
+
+        if (text === 'Удалить все заметки') {
             temporaryMsgIDs.push(message_id);
             clearStels();
-
+            
+            stelsNotes = [];
             const res = await bot.sendMessage(chatId, 'Заметки удалены');
+            temporaryMsgIDs.push(res.message_id);
 
             setTimeout(async () => {
-                bot.deleteMessage(chatId, res.message_id);
+                hideNotes();
             }, 3000);
 
             return;
         }
 
-        if (text === '/getStels') {
+        if (text === 'Показать мои заметки') {
+            temporaryMsgIDs.push(message_id);
+
             try {
                 async function forEachStels(item) {
                     if (!item) {
@@ -162,25 +201,7 @@ const start = async () => {
                 }
 
                 forEachStels(stelsNotes[0]);
-                /* console.log(stelsNotes);
-                stelsNotes.forEach(async item => {
-                    if (item.msg) {
-                        await bot.sendMessage(chatId, item.msg.text);
-                    }
-                    if (item.img) {
-                        //bot.sendPhoto(chatId, './image/file_0.jpg');
-    
-                        const photoId = item.img.photo[item.img.photo.length-1].file_id;
-    
-                        const imageStream = fs.createReadStream('./image/' + photoId + '.jpg');
-                        await bot.sendPhoto(chatId, imageStream, {
-    
-                            caption: item.img.caption,
-                            parse_mode: 'HTML'
-    
-                        });
-                    }
-                }); */
+                
                 if (!stelsNotes.length) {
                     await bot.sendMessage(chatId, 'Список заметок пуст');
                 }
@@ -193,28 +214,25 @@ const start = async () => {
             return;
         }
 
-        if (text === '/stels') {
+        if (text === 'Сохранить и скрыть') {
+            isStelsNotes = false;
+            temporaryMsgIDs.push(message_id);
+            clearTimeout(autoHideNotesID);
+
+            const res = await bot.sendMessage(chatId, 'Заметки сохранены');
+            temporaryMsgIDs.push(res.message_id);
+
+            setTimeout(async () => {
+                hideNotes();
+            }, 3000);
+            return;
+        }
+
+        if (text === 'Мои заметки') {
+            isStelsNotes = true;
             temporaryMsgIDs.push(message_id);
 
-            isStelsNotes = !isStelsNotes;
-            if (!isStelsNotes) {
-                clearStels();
-                const res = await bot.sendMessage(chatId, 'Заметки сохранены');
-
-                setTimeout(async () => {
-                    bot.deleteMessage(chatId, res.message_id);
-                }, 3000);
-
-                return;
-            }
-
-            try {
-                const res = await bot.sendMessage(chatId, `Режим заметок. Данный раздел позволяет оставлять скрытые заметки. \n\n Отправьте текст или фото, которые хотите сохранить. \n\n По окончанию наберите опять в чате /stels чтобы выйти из режима и скрыть сообщения. \n\n Для того чтобы посмотреть сохраненные заметки, наберите /getStels \n\n Чтобы очистить все заметки, наберите /clearStels`);
-                temporaryMsgIDs.push(res.message_id)
-            } catch (error) {
-                console.log(error);
-                return;
-            }
+            showNotes();
             return;
         }
 
@@ -232,8 +250,6 @@ const start = async () => {
 
         try {
             //getCourse();
-            
-
             if (text.includes('Мои заявки')) {
                 return bot.sendMessage(chatId, `Данный раздел в разработке. Скоро все будет пацаны`);
             }
@@ -340,25 +356,7 @@ const start = async () => {
         catch(error) {
             console.log(error);
         }
-    
     });
-
-    /* bot.on('callback_query', async msg => {
-        const data = msg.data;
-        const chatId = msg.message.chat.id;
-        if (data === '/again') {
-            return startGame(chatId)
-        }
-        const user = await UserModel.findOne({ chatId })
-        if (data == chats[chatId]) {
-            user.right += 1;
-            await bot.sendMessage(chatId, `Поздравляю, ты отгадал цифру ${chats[chatId]}`, againOptions);
-        } else {
-            user.wrong += 1;
-            await bot.sendMessage(chatId, `К сожалению ты не угадал, бот загадал цифру ${chats[chatId]}`, againOptions);
-        }
-        await user.save();
-    }) */
 }
 
 start();
