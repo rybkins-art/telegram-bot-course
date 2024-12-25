@@ -4,7 +4,7 @@ const TelegramApi = require('node-telegram-bot-api')
 const { gameOptions, againOptions, types } = require('./options');
 const { clearInterval } = require('timers');
 
-const token = '6946681054:AAEOvH7d7xwKsZcceD5i9pabun0RExgKtFw'
+const token = ''
 const bot = new TelegramApi(token, { polling: true })
 
 /* let BTCWallet = '';
