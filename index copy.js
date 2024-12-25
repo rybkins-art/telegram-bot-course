@@ -5,22 +5,19 @@ const { gameOptions, againOptions, types } = require('./options');
 const { clearInterval } = require('timers');
 
 const token = '6946681054:AAEOvH7d7xwKsZcceD5i9pabun0RExgKtFw'
+
+
+
 const bot = new TelegramApi(token, { polling: true })
 
-/* let BTCWallet = '';
+let BTCWallet = '';
 let price = 0;
 let course = {};
-const commission = 0.2; */
-//let isStelsNotes = false;
-let isAddMode = false;
-//let stelsNotes = [];
+const commission = 0.2;
+let isStelsNotes = false;
+let stelsNotes = [];
 let temporaryMsgIDs = [];
-let credList = [];
-let loginItem = {
-    login: '',
-    password: '',
-    hint: ''
-}
+let autoHideNotesID = 0;
 
 function between(min, max) {
     return Math.floor(
@@ -74,8 +71,9 @@ const start = async () => {
         const mainMenu = {
             reply_markup: {
                 keyboard: [
-                    ['Добавить пароль', '🈺 Найти пароль'],
-                    ['Мои пароли', '❓ Помощь'],
+                    ['✅ Пополнить', '🈺 Текущий курс'],
+                    ['🥷 Мои заявки', '❓ Помощь'],
+                    ['Мои заметки']
                 ],
                 resize_keyboard: true
             }
@@ -85,38 +83,13 @@ const start = async () => {
             return;
         }
 
-        /* if (isStelsNotes) {
+        if (isStelsNotes) {
             clearTimeout(autoHideNotesID);
             autoHideNotesID = setTimeout(hideNotes, autoHideNotes);
-        } */
-
-        if (isAddMode) {
-            if (isAddMode === 'login') {
-                loginItem.login = text;
-
-                const res = await bot.sendMessage(chatId, 'Введите пароль');
-                isAddMode = 'pass';
-            } else if (isAddMode === 'pass') {
-                loginItem.password = text;
-
-                const res = await bot.sendMessage(chatId, 'Введите описание кредов. Например: креды от youtube');
-                isAddMode = 'hint';
-            } else if (isAddMode === 'hint') {
-                loginItem.hint = text;
-
-                credList.push({
-                    ...loginItem,
-                });
-                loginItem = {};
-                const res = await bot.sendMessage(chatId, 'Креды успешно добавлены');
-                isAddMode = false;
-            }
-
-            return;
         }
         
 
-        /* function clearStels() {
+        function clearStels() {
             stelsNotes.forEach(item => {
                 try {
                     bot.deleteMessage(chatId, item.id);
@@ -157,23 +130,32 @@ const start = async () => {
             startMenu();
 
             return;
-        } */
+        }
 
         async function startMenu() {
             // Приветствие
             let res = await bot.sendSticker(chatId, 'https://media.stickerswiki.app/moneybitcoin_byalexzhdanov/6412776.512.webp')
             temporaryMsgIDs.push(res.message_id)
 
-            res = await bot.sendMessage(chatId, `Привет!  ${msg.from.first_name} 🤝 \n\n Это сервис менеджер паролей.`);
+            res = await bot.sendMessage(chatId, `Привет!  ${msg.from.first_name} 🤝 \n\n Самый Выгодный и Быстрый обмен в нашем сервисе! \n🤷 Возникла проблема с заказом или вопрос /help
+⚙️ Если завис бот, используй /start`);
             temporaryMsgIDs.push(res.message_id)
             
             // Меню
-            res = await bot.sendMessage(chatId, 'Безопасно, удобно, надежно', mainMenu);
+            res = await bot.sendMessage(chatId, 'Уверен, Мы обязательно Подружимся!', mainMenu);
             temporaryMsgIDs.push(res.message_id)
         }
 
+        if (isStart) {
+            bot.deleteMessage(chatId, message_id);
+            clearStels();
+            isStelsNotes = false;
 
-        /* if (text === 'Удалить все пароли') {
+            startMenu();
+            return;
+        }
+
+        if (text === 'Удалить все заметки') {
             temporaryMsgIDs.push(message_id);
             clearStels();
             
@@ -186,9 +168,9 @@ const start = async () => {
             }, 3000);
 
             return;
-        } */
+        }
 
-        if (text === 'Мои пароли') {
+        if (text === 'Показать мои заметки') {
             temporaryMsgIDs.push(message_id);
 
             try {
@@ -196,11 +178,11 @@ const start = async () => {
                     if (!item) {
                         return;
                     }
-                    if (item) {
-                        const res = await bot.sendMessage(chatId, `🤫 ${item.hint} \n ${item.login} ${item.password}`);
+                    if (item.msg) {
+                        const res = await bot.sendMessage(chatId, item.msg.text);
                         temporaryMsgIDs.push(res.message_id);
                     }
-                    /* if (item.img) {
+                    if (item.img) {
                         //bot.sendPhoto(chatId, './image/file_0.jpg');
     
                         const photoId = item.img.photo[item.img.photo.length-1].file_id;
@@ -214,22 +196,22 @@ const start = async () => {
                         });
 
                         temporaryMsgIDs.push(res.message_id)
-                    } */
+                    }
 
-                    const index = credList.indexOf(item);
-                    const nextIndex = index + 1;
-                    if (nextIndex < credList.length) {
-                        forEachStels(credList[nextIndex]);
+                    const indexStels = stelsNotes.indexOf(item);
+                    const nextIndex = indexStels + 1;
+                    if (nextIndex < stelsNotes.length) {
+                        forEachStels(stelsNotes[nextIndex]);
                     }
                 }
 
-                forEachStels(credList[0]);
+                forEachStels(stelsNotes[0]);
                 
-                if (!credList.length) {
-                    const res = await bot.sendMessage(chatId, 'Список парлей пуст');
+                if (!stelsNotes.length) {
+                    const res = await bot.sendMessage(chatId, 'Список заметок пуст');
                     temporaryMsgIDs.push(res.message_id);
                 }
-                //bot.deleteMessage(chatId, message_id);
+                bot.deleteMessage(chatId, message_id);
                 return;
             } catch (error) {
                 console.log(error)
@@ -238,24 +220,21 @@ const start = async () => {
             return;
         }
 
-        if (text === 'Добавить пароль') {
-            isAddMode = 'login';
-            
-            const res = await bot.sendMessage(chatId, 'Введите логин');
-            /* isStelsNotes = false;
+        if (text === 'Сохранить и скрыть') {
+            isStelsNotes = false;
             temporaryMsgIDs.push(message_id);
             clearTimeout(autoHideNotesID);
 
-            const res = await bot.sendMessage(chatId, 'Пароль сохранен');
+            const res = await bot.sendMessage(chatId, 'Заметки сохранены');
             temporaryMsgIDs.push(res.message_id);
 
             setTimeout(async () => {
                 hideNotes();
-            }, 3000); */
+            }, 3000);
             return;
         }
 
-        /* if (text === 'Мои заметки') {
+        if (text === 'Мои заметки') {
             isStelsNotes = true;
             temporaryMsgIDs.push(message_id);
 
@@ -272,10 +251,10 @@ const start = async () => {
             return;
             //isStelsNotes = false;
         }
- */
+
         console.log(`${msg.from.username}: ${msg.text}`)
 
-        /* try {
+        try {
             //getCourse();
             if (text.includes('Мои заявки')) {
                 return bot.sendMessage(chatId, `Данный раздел в разработке. Скоро все будет пацаны`);
@@ -347,11 +326,11 @@ const start = async () => {
         } catch (e) {
             console.log(e)
             return bot.sendMessage(chatId, 'Неизвестная команда..)');
-        } */
+        }
 
     });
 
-    /* bot.on('photo', async img => {
+    bot.on('photo', async img => {
         const chatId = img.chat.id;
 
         const downloadFolder = './image';
@@ -383,7 +362,7 @@ const start = async () => {
         catch(error) {
             console.log(error);
         }
-    }); */
+    });
 }
 
 start();
